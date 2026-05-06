@@ -11,8 +11,14 @@ func TestDeriveKey(t *testing.T) {
 		salt[i] = byte(i)
 	}
 
-	key1 := deriveKey(password, salt)
-	key2 := deriveKey(password, salt)
+	key1, err := deriveKey(password, salt)
+	if err != nil {
+		t.Fatalf("deriveKey failed: %v", err)
+	}
+	key2, err := deriveKey(password, salt)
+	if err != nil {
+		t.Fatalf("deriveKey failed: %v", err)
+	}
 
 	if len(key1) != 32 {
 		t.Errorf("expected key length 32, got %d", len(key1))
@@ -31,7 +37,10 @@ func TestDeriveKey(t *testing.T) {
 	for i := range salt2 {
 		salt2[i] = byte(i + 1)
 	}
-	key3 := deriveKey(password, salt2)
+	key3, err := deriveKey(password, salt2)
+	if err != nil {
+		t.Fatalf("deriveKey failed: %v", err)
+	}
 
 	same := true
 	for i := range key1 {
