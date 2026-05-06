@@ -60,3 +60,40 @@ func encrypt(plaintext []byte, password string) ([]byte, error) {
 
 	return result, nil
 }
+
+func decrypt(ciphertext []byte, password string) ([]byte, error) {
+	if len(ciphertext) < 16+12+16 {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	// Extract salt, nonce, and encrypted data
+	salt := ciphertext[:16]
+	nonce := ciphertext[16:28]
+	encrypted := ciphertext[28:]
+
+	// Derive key
+	key, err := deriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("deriving key: %w", err)
+	}
+
+	// Create AES cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("creating cipher: %w", err)
+	}
+
+	// Create GCM
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("creating GCM: %w", err)
+	}
+
+	// Decrypt
+	plaintext, err := gcm.Open(nil, nonce, encrypted, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decryption failed (wrong password or corrupted file): %w", err)
+	}
+
+	return plaintext, nil
+}

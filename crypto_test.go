@@ -75,3 +75,41 @@ func TestEncrypt(t *testing.T) {
 		t.Errorf("unexpected ciphertext length: %d", len(ciphertext))
 	}
 }
+
+func TestDecrypt(t *testing.T) {
+	plaintext := []byte("Hello, World! This is a test message.")
+	password := "strongpassword"
+
+	// Encrypt first
+	ciphertext, err := encrypt(plaintext, password)
+	if err != nil {
+		t.Fatalf("encrypt failed: %v", err)
+	}
+
+	// Decrypt
+	decrypted, err := decrypt(ciphertext, password)
+	if err != nil {
+		t.Fatalf("decrypt failed: %v", err)
+	}
+
+	// Should match original
+	if string(decrypted) != string(plaintext) {
+		t.Errorf("decrypted text doesn't match: got %q, want %q", decrypted, plaintext)
+	}
+}
+
+func TestDecryptWrongPassword(t *testing.T) {
+	plaintext := []byte("Secret message")
+	password := "correctpassword"
+
+	ciphertext, err := encrypt(plaintext, password)
+	if err != nil {
+		t.Fatalf("encrypt failed: %v", err)
+	}
+
+	// Try decrypt with wrong password
+	_, err = decrypt(ciphertext, "wrongpassword")
+	if err == nil {
+		t.Error("expected error with wrong password, got nil")
+	}
+}
