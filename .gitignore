@@ -20,3 +20,10 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Sensitive files (crypto project)
+.env
+*.key
+*.pem
+*.p12
+*.pfx
