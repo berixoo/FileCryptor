@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -111,5 +113,58 @@ func TestDecryptWrongPassword(t *testing.T) {
 	_, err = decrypt(ciphertext, "wrongpassword")
 	if err == nil {
 		t.Error("expected error with wrong password, got nil")
+	}
+}
+
+func TestEncryptFile(t *testing.T) {
+	// Create temp directory
+	tmpDir := t.TempDir()
+
+	// Create test file
+	inputFile := filepath.Join(tmpDir, "test.txt")
+	os.WriteFile(inputFile, []byte("Hello, World!"), 0644)
+
+	// Encrypt
+	outputFile := filepath.Join(tmpDir, "test.txt.enc")
+	err := encryptFile(inputFile, outputFile, "password123")
+	if err != nil {
+		t.Fatalf("encryptFile failed: %v", err)
+	}
+
+	// Verify output exists
+	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
+		t.Error("encrypted file not created")
+	}
+
+	// Verify output is different from input
+	input, _ := os.ReadFile(inputFile)
+	output, _ := os.ReadFile(outputFile)
+	if string(input) == string(output) {
+		t.Error("encrypted file should be different from input")
+	}
+}
+
+func TestDecryptFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create and encrypt test file
+	inputFile := filepath.Join(tmpDir, "test.txt")
+	original := []byte("Hello, World!")
+	os.WriteFile(inputFile, original, 0644)
+
+	encryptedFile := filepath.Join(tmpDir, "test.txt.enc")
+	encryptFile(inputFile, encryptedFile, "password123")
+
+	// Decrypt
+	decryptedFile := filepath.Join(tmpDir, "test.txt.dec")
+	err := decryptFile(encryptedFile, decryptedFile, "password123")
+	if err != nil {
+		t.Fatalf("decryptFile failed: %v", err)
+	}
+
+	// Verify content matches
+	decrypted, _ := os.ReadFile(decryptedFile)
+	if string(decrypted) != string(original) {
+		t.Errorf("decrypted content doesn't match: got %q, want %q", decrypted, original)
 	}
 }

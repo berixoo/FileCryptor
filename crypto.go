@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"os"
 
 	"golang.org/x/crypto/scrypt"
 )
@@ -96,4 +97,46 @@ func decrypt(ciphertext []byte, password string) ([]byte, error) {
 	}
 
 	return plaintext, nil
+}
+
+func encryptFile(inputPath, outputPath, password string) error {
+	// Read input file
+	plaintext, err := os.ReadFile(inputPath)
+	if err != nil {
+		return fmt.Errorf("reading input file: %w", err)
+	}
+
+	// Encrypt
+	ciphertext, err := encrypt(plaintext, password)
+	if err != nil {
+		return fmt.Errorf("encrypting: %w", err)
+	}
+
+	// Write output file
+	if err := os.WriteFile(outputPath, ciphertext, 0644); err != nil {
+		return fmt.Errorf("writing output file: %w", err)
+	}
+
+	return nil
+}
+
+func decryptFile(inputPath, outputPath, password string) error {
+	// Read input file
+	ciphertext, err := os.ReadFile(inputPath)
+	if err != nil {
+		return fmt.Errorf("reading input file: %w", err)
+	}
+
+	// Decrypt
+	plaintext, err := decrypt(ciphertext, password)
+	if err != nil {
+		return fmt.Errorf("decrypting: %w", err)
+	}
+
+	// Write output file
+	if err := os.WriteFile(outputPath, plaintext, 0644); err != nil {
+		return fmt.Errorf("writing output file: %w", err)
+	}
+
+	return nil
 }
