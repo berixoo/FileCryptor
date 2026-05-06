@@ -53,3 +53,25 @@ func TestDeriveKey(t *testing.T) {
 		t.Error("different salt should produce different key")
 	}
 }
+
+func TestEncrypt(t *testing.T) {
+	plaintext := []byte("Hello, World! This is a test message.")
+	password := "strongpassword"
+
+	ciphertext, err := encrypt(plaintext, password)
+	if err != nil {
+		t.Fatalf("encrypt failed: %v", err)
+	}
+
+	// ciphertext should be longer than plaintext (salt + nonce + tag)
+	if len(ciphertext) <= len(plaintext) {
+		t.Error("ciphertext should be longer than plaintext")
+	}
+
+	// First 16 bytes should be salt
+	// Next 12 bytes should be nonce
+	// Rest should be encrypted data + tag
+	if len(ciphertext) != 16+12+len(plaintext)+16 {
+		t.Errorf("unexpected ciphertext length: %d", len(ciphertext))
+	}
+}
