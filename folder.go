@@ -99,6 +99,68 @@ func batchEncrypt(dir string, password string, workerCount int, progress func())
 	return result
 }
 
+func batchDecrypt(dir string, password string, workerCount int, progress func()) BatchResult {
+	// 收集所有 .enc 文件
+	files, err := collectFiles(dir)
+	if err != nil {
+		return BatchResult{Errors: []error{err}}
+	}
+
+	result := BatchResult{TotalFiles: len(files)}
+
+	// 预创建所有输出目录
+	outputDir := strings.TrimSuffix(dir, "_encrypted")
+	if outputDir == dir {
+		outputDir = dir + "_decrypted"
+	}
+	for _, f := range files {
+		relPath, _ := filepath.Rel(dir, f)
+		outPath := filepath.Join(outputDir, strings.TrimSuffix(relPath, ".enc"))
+		os.MkdirAll(filepath.Dir(outPath), 0755)
+	}
+
+	// 创建任务通道
+	taskChan := make(chan string, len(files))
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	// 启动 workers
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for filePath := range taskChan {
+				relPath, _ := filepath.Rel(dir, filePath)
+				outPath := filepath.Join(outputDir, strings.TrimSuffix(relPath, ".enc"))
+
+				err := decryptFile(filePath, outPath, password)
+
+				mu.Lock()
+				if err != nil {
+					result.FailedFiles++
+					result.Errors = append(result.Errors, err)
+				} else {
+					result.SuccessFiles++
+				}
+				mu.Unlock()
+
+				progress()
+			}
+		}()
+	}
+
+	// 分发任务
+	for _, f := range files {
+		taskChan <- f
+	}
+	close(taskChan)
+
+	// 等待完成
+	wg.Wait()
+
+	return result
+}
+
 func collectFiles(dir string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {

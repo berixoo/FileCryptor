@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -116,5 +117,35 @@ func TestBatchEncrypt(t *testing.T) {
 	// 验证进度调用次数
 	if progressCount != 3 {
 		t.Errorf("expected 3 progress calls, got %d", progressCount)
+	}
+}
+
+func TestBatchDecrypt(t *testing.T) {
+	// 创建临时目录并加密
+	tmpDir := t.TempDir()
+	os.MkdirAll(filepath.Join(tmpDir, "sub"), 0755)
+	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("hello"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "sub", "file2.txt"), []byte("world"), 0644)
+
+	// 先加密
+	encResult := batchEncrypt(tmpDir, "password123", 2, func() {})
+	if encResult.SuccessFiles != 2 {
+		t.Fatalf("encryption failed: %v", encResult.Errors)
+	}
+
+	// 解密
+	encDir := filepath.Join(filepath.Dir(tmpDir), filepath.Base(tmpDir)+"_encrypted")
+	progressCount := 0
+	decResult := batchDecrypt(encDir, "password123", 2, func() { progressCount++ })
+
+	if decResult.SuccessFiles != 2 {
+		t.Errorf("expected 2 success files, got %d", decResult.SuccessFiles)
+	}
+
+	// 验证解密后的文件内容
+	decDir := strings.TrimSuffix(encDir, "_encrypted")
+	content, _ := os.ReadFile(filepath.Join(decDir, "file1.txt"))
+	if string(content) != "hello" {
+		t.Errorf("decrypted content = %q, want %q", content, "hello")
 	}
 }
