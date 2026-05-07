@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -26,14 +25,6 @@ func main() {
 	// Determine operation based on file extension
 	isEncrypted := strings.HasSuffix(strings.ToLower(filePath), ".enc")
 
-	// Get exe directory for output
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Printf("错误: 无法获取程序路径: %v\n", err)
-		os.Exit(1)
-	}
-	exeDir := filepath.Dir(exePath)
-
 	// Launch GUI
-	showGUI(filePath, isEncrypted, exeDir)
+	showGUI(filePath, isEncrypted)
 }

@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -14,7 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func showGUI(filePath string, isEncrypted bool, exeDir string) {
+func showGUI(filePath string, isEncrypted bool) {
 	a := app.New()
 	w := a.NewWindow("FileCryptor")
 	w.Resize(fyne.NewSize(400, 300))
@@ -49,6 +48,9 @@ func showGUI(filePath string, isEncrypted bool, exeDir string) {
 	// Progress channel for thread-safe UI updates
 	progressChan := make(chan float64, 10)
 	doneChan := make(chan error, 1)
+	// Channel for overwrite confirmation
+	confirmChan := make(chan string, 1)
+	confirmResultChan := make(chan bool, 1)
 
 	// Buttons
 	var startBtn *widget.Button
@@ -76,9 +78,9 @@ func showGUI(filePath string, isEncrypted bool, exeDir string) {
 			}
 
 			if isEncrypted {
-				err = processDecryption(filePath, exeDir, password, progressFunc)
+				err = processDecryption(filePath, password, progressFunc, confirmChan, confirmResultChan)
 			} else {
-				err = processEncryption(filePath, exeDir, password, progressFunc)
+				err = processEncryption(filePath, password, progressFunc, confirmChan, confirmResultChan)
 			}
 
 			doneChan <- err
@@ -95,6 +97,10 @@ func showGUI(filePath string, isEncrypted bool, exeDir string) {
 			select {
 			case p := <-progressChan:
 				progress.SetValue(p)
+			case path := <-confirmChan:
+				dialog.ShowConfirm("文件已存在", "文件已存在，是否覆盖？\n"+path, func(ok bool) {
+					confirmResultChan <- ok
+				}, w)
 			case err := <-doneChan:
 				if err != nil {
 					dialog.ShowError(err, w)
@@ -126,16 +132,17 @@ func showGUI(filePath string, isEncrypted bool, exeDir string) {
 	w.ShowAndRun()
 }
 
-func processEncryption(inputPath, exeDir string, password string, progress func(float64)) error {
-	// Create encrypted directory
-	encDir := filepath.Join(exeDir, "encrypted")
-	if err := os.MkdirAll(encDir, 0755); err != nil {
-		return fmt.Errorf("创建加密目录失败: %w", err)
-	}
+func processEncryption(inputPath, password string, progress func(float64), confirmChan chan<- string, confirmResultChan <-chan bool) error {
+	// Output file path (same directory as input)
+	outputPath := inputPath + ".enc"
 
-	// Output file path
-	fileName := filepath.Base(inputPath)
-	outputPath := filepath.Join(encDir, fileName+".enc")
+	// Check if output file exists
+	if _, err := os.Stat(outputPath); err == nil {
+		confirmChan <- outputPath
+		if !<-confirmResultChan {
+			return fmt.Errorf("操作已取消")
+		}
+	}
 
 	progress(0.1)
 
@@ -164,17 +171,17 @@ func processEncryption(inputPath, exeDir string, password string, progress func(
 	return nil
 }
 
-func processDecryption(inputPath, exeDir string, password string, progress func(float64)) error {
-	// Create decrypted directory
-	decDir := filepath.Join(exeDir, "decrypted")
-	if err := os.MkdirAll(decDir, 0755); err != nil {
-		return fmt.Errorf("创建解密目录失败: %w", err)
-	}
-
+func processDecryption(inputPath, password string, progress func(float64), confirmChan chan<- string, confirmResultChan <-chan bool) error {
 	// Output file path (remove .enc extension)
-	fileName := filepath.Base(inputPath)
-	outputName := strings.TrimSuffix(fileName, ".enc")
-	outputPath := filepath.Join(decDir, outputName)
+	outputPath := strings.TrimSuffix(inputPath, ".enc")
+
+	// Check if output file exists
+	if _, err := os.Stat(outputPath); err == nil {
+		confirmChan <- outputPath
+		if !<-confirmResultChan {
+			return fmt.Errorf("操作已取消")
+		}
+	}
 
 	progress(0.1)
 
