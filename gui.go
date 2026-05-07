@@ -13,14 +13,14 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func showGUI(filePath string, isEncrypted bool) {
+func showGUI(targetPath string, isEncrypted bool, isDir bool) {
 	a := app.New()
 	w := a.NewWindow("FileCryptor")
 	w.Resize(fyne.NewSize(400, 300))
 	w.CenterOnScreen()
 
 	// File info
-	fileName := widget.NewLabel("文件: " + filePath)
+	fileName := widget.NewLabel("文件: " + targetPath)
 	fileName.Wrapping = fyne.TextWrapWord
 
 	// Operation type
@@ -78,9 +78,9 @@ func showGUI(filePath string, isEncrypted bool) {
 			}
 
 			if isEncrypted {
-				err = processDecryption(filePath, password, progressFunc, confirmChan, confirmResultChan)
+				err = processDecryption(targetPath, password, progressFunc, confirmChan, confirmResultChan)
 			} else {
-				err = processEncryption(filePath, password, progressFunc, confirmChan, confirmResultChan)
+				err = processEncryption(targetPath, password, progressFunc, confirmChan, confirmResultChan)
 			}
 
 			doneChan <- err
