@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 func convertPath(baseDir, filePath string, isEncrypt bool) string {
@@ -29,6 +30,73 @@ func convertPath(baseDir, filePath string, isEncrypt bool) string {
 	}
 	// 解密时去掉 .enc 后缀
 	return filepath.Join(outputDir, strings.TrimSuffix(relPath, ".enc"))
+}
+
+// BatchResult holds the results of a batch encrypt/decrypt operation.
+type BatchResult struct {
+	TotalFiles   int
+	SuccessFiles int
+	FailedFiles  int
+	Errors       []error
+}
+
+func batchEncrypt(dir string, password string, workerCount int, progress func()) BatchResult {
+	// 收集所有文件
+	files, err := collectFiles(dir)
+	if err != nil {
+		return BatchResult{Errors: []error{err}}
+	}
+
+	result := BatchResult{TotalFiles: len(files)}
+
+	// 预创建所有输出目录
+	outputDir := filepath.Join(filepath.Dir(dir), filepath.Base(dir)+"_encrypted")
+	for _, f := range files {
+		relPath, _ := filepath.Rel(dir, f)
+		outPath := filepath.Join(outputDir, relPath+".enc")
+		os.MkdirAll(filepath.Dir(outPath), 0755)
+	}
+
+	// 创建任务通道
+	taskChan := make(chan string, len(files))
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	// 启动 workers
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for filePath := range taskChan {
+				relPath, _ := filepath.Rel(dir, filePath)
+				outPath := filepath.Join(outputDir, relPath+".enc")
+
+				err := encryptFile(filePath, outPath, password)
+
+				mu.Lock()
+				if err != nil {
+					result.FailedFiles++
+					result.Errors = append(result.Errors, err)
+				} else {
+					result.SuccessFiles++
+				}
+				mu.Unlock()
+
+				progress()
+			}
+		}()
+	}
+
+	// 分发任务
+	for _, f := range files {
+		taskChan <- f
+	}
+	close(taskChan)
+
+	// 等待完成
+	wg.Wait()
+
+	return result
 }
 
 func collectFiles(dir string) ([]string, error) {

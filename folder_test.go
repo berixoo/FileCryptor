@@ -75,3 +75,46 @@ func TestCollectFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestBatchEncrypt(t *testing.T) {
+	// 创建临时目录结构
+	tmpDir := t.TempDir()
+	os.MkdirAll(filepath.Join(tmpDir, "sub"), 0755)
+	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("hello"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "file2.txt"), []byte("world"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "sub", "file3.txt"), []byte("sub"), 0644)
+
+	// 进度计数
+	progressCount := 0
+	progressFunc := func() {
+		progressCount++
+	}
+
+	// 执行批量加密
+	result := batchEncrypt(tmpDir, "password123", 2, progressFunc)
+
+	// 验证结果
+	if result.TotalFiles != 3 {
+		t.Errorf("expected 3 total files, got %d", result.TotalFiles)
+	}
+	if result.SuccessFiles != 3 {
+		t.Errorf("expected 3 success files, got %d", result.SuccessFiles)
+	}
+	if result.FailedFiles != 0 {
+		t.Errorf("expected 0 failed files, got %d", result.FailedFiles)
+	}
+
+	// 验证输出文件存在
+	outputDir := filepath.Join(filepath.Dir(tmpDir), filepath.Base(tmpDir)+"_encrypted")
+	if _, err := os.Stat(filepath.Join(outputDir, "file1.txt.enc")); os.IsNotExist(err) {
+		t.Error("file1.txt.enc not created")
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "sub", "file3.txt.enc")); os.IsNotExist(err) {
+		t.Error("sub/file3.txt.enc not created")
+	}
+
+	// 验证进度调用次数
+	if progressCount != 3 {
+		t.Errorf("expected 3 progress calls, got %d", progressCount)
+	}
+}
