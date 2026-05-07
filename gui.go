@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -20,7 +21,11 @@ func showGUI(targetPath string, isEncrypted bool, isDir bool) {
 	w.CenterOnScreen()
 
 	// File info
-	fileName := widget.NewLabel("文件: " + targetPath)
+	typeLabel := "文件"
+	if isDir {
+		typeLabel = "文件夹"
+	}
+	fileName := widget.NewLabel(typeLabel + ": " + targetPath)
 	fileName.Wrapping = fyne.TextWrapWord
 
 	// Operation type
@@ -71,16 +76,45 @@ func showGUI(targetPath string, isEncrypted bool, isDir bool) {
 		progress.Show()
 		startBtn.Disable()
 
+		// 文件夹模式下设置进度条最大值为文件数量
+		if isDir {
+			if files, err := collectFiles(targetPath); err == nil {
+				progress.Max = float64(len(files))
+			}
+		}
+
 		go func() {
 			var err error
-			progressFunc := func(p float64) {
-				progressChan <- p
-			}
 
-			if isEncrypted {
-				err = processDecryption(targetPath, password, progressFunc, confirmChan, confirmResultChan)
+			if isDir {
+				// 文件夹批量处理
+				workerCount := runtime.NumCPU()
+				if isEncrypted {
+					result := batchDecrypt(targetPath, password, workerCount, func() {
+						progressChan <- -1 // -1 表示完成一个文件
+					})
+					if result.FailedFiles > 0 {
+						err = fmt.Errorf("完成：%d 成功，%d 失败", result.SuccessFiles, result.FailedFiles)
+					}
+				} else {
+					result := batchEncrypt(targetPath, password, workerCount, func() {
+						progressChan <- -1
+					})
+					if result.FailedFiles > 0 {
+						err = fmt.Errorf("完成：%d 成功，%d 失败", result.SuccessFiles, result.FailedFiles)
+					}
+				}
 			} else {
-				err = processEncryption(targetPath, password, progressFunc, confirmChan, confirmResultChan)
+				// 单文件处理
+				progressFunc := func(p float64) {
+					progressChan <- p
+				}
+
+				if isEncrypted {
+					err = processDecryption(targetPath, password, progressFunc, confirmChan, confirmResultChan)
+				} else {
+					err = processEncryption(targetPath, password, progressFunc, confirmChan, confirmResultChan)
+				}
 			}
 
 			doneChan <- err
@@ -93,10 +127,19 @@ func showGUI(targetPath string, isEncrypted bool, isDir bool) {
 
 	// Goroutine to handle progress updates on main thread
 	go func() {
+		var fileCount float64
+
 		for {
 			select {
 			case p := <-progressChan:
-				progress.SetValue(p)
+				if p == -1 {
+					// 文件夹模式：完成一个文件
+					fileCount++
+					progress.SetValue(fileCount)
+				} else {
+					// 单文件模式
+					progress.SetValue(p)
+				}
 			case path := <-confirmChan:
 				dialog.ShowConfirm("文件已存在", "文件已存在，是否覆盖？\n"+path, func(ok bool) {
 					confirmResultChan <- ok
