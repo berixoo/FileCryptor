@@ -7,6 +7,42 @@ import (
 	"testing"
 )
 
+func TestConvertPaths(t *testing.T) {
+	tests := []struct {
+		inputDir   string
+		inputFile  string
+		isEncrypt  bool
+		wantOutput string
+	}{
+		{
+			inputDir:   "C:\\docs\\myfolder",
+			inputFile:  "C:\\docs\\myfolder\\file1.txt",
+			isEncrypt:  true,
+			wantOutput: "C:\\docs\\myfolder_encrypted\\file1.txt.enc",
+		},
+		{
+			inputDir:   "C:\\docs\\myfolder",
+			inputFile:  "C:\\docs\\myfolder\\sub\\file2.txt",
+			isEncrypt:  true,
+			wantOutput: "C:\\docs\\myfolder_encrypted\\sub\\file2.txt.enc",
+		},
+		{
+			inputDir:   "C:\\docs\\myfolder_encrypted",
+			inputFile:  "C:\\docs\\myfolder_encrypted\\file1.txt.enc",
+			isEncrypt:  false,
+			wantOutput: "C:\\docs\\myfolder\\file1.txt",
+		},
+	}
+
+	for _, tt := range tests {
+		got := convertPath(tt.inputDir, tt.inputFile, tt.isEncrypt)
+		if got != tt.wantOutput {
+			t.Errorf("convertPath(%q, %q, %v) = %q, want %q",
+				tt.inputDir, tt.inputFile, tt.isEncrypt, got, tt.wantOutput)
+		}
+	}
+}
+
 func TestCollectFiles(t *testing.T) {
 	// 创建临时目录结构
 	tmpDir := t.TempDir()
