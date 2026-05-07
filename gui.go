@@ -46,8 +46,9 @@ func showGUI(filePath string, isEncrypted bool, exeDir string) {
 	progress := widget.NewProgressBar()
 	progress.Hide()
 
-	// Status label
-	statusLabel := widget.NewLabel("")
+	// Progress channel for thread-safe UI updates
+	progressChan := make(chan float64, 10)
+	doneChan := make(chan error, 1)
 
 	// Buttons
 	var startBtn *widget.Button
@@ -70,30 +71,43 @@ func showGUI(filePath string, isEncrypted bool, exeDir string) {
 
 		go func() {
 			var err error
-			if isEncrypted {
-				err = processDecryption(filePath, exeDir, password, func(p float64) {
-					progress.SetValue(p)
-				})
-			} else {
-				err = processEncryption(filePath, exeDir, password, func(p float64) {
-					progress.SetValue(p)
-				})
+			progressFunc := func(p float64) {
+				progressChan <- p
 			}
 
-			if err != nil {
-				dialog.ShowError(err, w)
-				startBtn.Enable()
-				progress.Hide()
+			if isEncrypted {
+				err = processDecryption(filePath, exeDir, password, progressFunc)
 			} else {
-				dialog.ShowInformation("成功", operation+"完成！", w)
-				w.Close()
+				err = processEncryption(filePath, exeDir, password, progressFunc)
 			}
+
+			doneChan <- err
 		}()
 	})
 
 	cancelBtn := widget.NewButton("取消", func() {
 		w.Close()
 	})
+
+	// Goroutine to handle progress updates on main thread
+	go func() {
+		for {
+			select {
+			case p := <-progressChan:
+				progress.SetValue(p)
+			case err := <-doneChan:
+				if err != nil {
+					dialog.ShowError(err, w)
+					startBtn.Enable()
+					progress.Hide()
+				} else {
+					dialog.ShowInformation("成功", operation+"完成！", w)
+					w.Close()
+				}
+				return
+			}
+		}
+	}()
 
 	// Layout
 	content := container.NewVBox(
@@ -106,7 +120,6 @@ func showGUI(filePath string, isEncrypted bool, exeDir string) {
 		content.Add(confirmEntry)
 	}
 	content.Add(progress)
-	content.Add(statusLabel)
 	content.Add(container.NewHBox(startBtn, cancelBtn))
 
 	w.SetContent(content)
