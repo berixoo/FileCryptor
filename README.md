@@ -55,7 +55,7 @@ Download the latest `FileCryptor.exe` from [Releases](../../releases).
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/FileCryptor.git
+git clone https://github.com/berixoo/FileCryptor.git
 cd FileCryptor
 
 # Build
